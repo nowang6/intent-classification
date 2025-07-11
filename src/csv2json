@@ -1,0 +1,129 @@
+import pandas as pd
+import numpy as np
+import yaml
+import json
+
+def load_intent_data(file_path='data/intent.csv'):
+    """
+    加载意图分类数据集
+    
+    Args:
+        file_path: CSV文件路径
+        
+    Returns:
+        df: 处理后的DataFrame
+    """
+    # 读取CSV文件
+    df = pd.read_csv(file_path)
+    
+    # 检查并打印缺失值信息
+    print("\n检查数据缺失情况:")
+    print(df.isna().sum())
+    
+    # 处理texts列，先填充空值，然后将字符串分割成列表
+    df['texts'] = df['texts'].fillna('')  # 将NaN替换为空字符串
+    df['texts'] = df['texts'].apply(lambda x: x.split('\n') if x else [])
+    
+    # 清理label列中的特殊字符
+    df['label'] = df['label'].str.strip().str.replace(r'[\r\t\n]+', '', regex=True)
+    
+    # 打印数据集基本信息
+    print(f"\n意图类别数量: {len(df['label'].unique())}")
+    print(f"总样本数量: {len(df)}")
+    
+    # 打印每个意图类别的样本数量
+    print("\n每个意图类别的样本数量:")
+    for _, row in df.iterrows():
+        texts_count = len(row['texts'])
+        print(f"{row['label']}: {texts_count}条文本")
+    
+    return df
+
+def get_intent_samples(df, label=None):
+    """
+    获取指定意图类别的样本
+    
+    Args:
+        df: DataFrame
+        label: 意图类别名称，如果为None则随机选择一个类别
+        
+    Returns:
+        label: 意图类别
+        texts: 该类别下的文本列表
+    """
+    if label is None:
+        # 随机选择一个意图类别
+        label = np.random.choice(df['label'].unique())
+    
+    # 获取该类别的所有文本
+    texts = df[df['label'] == label].iloc[0]['texts']
+    return label, texts
+
+def save_to_yaml(df, output_file='data/intent.yaml'):
+    """
+    将意图数据转换为YAML格式并保存
+    
+    Args:
+        df: DataFrame
+        output_file: 输出的YAML文件路径
+    """
+    # 创建要保存的数据结构
+    intent_data = {}
+    
+    # 遍历DataFrame，构建数据结构
+    for _, row in df.iterrows():
+        intent_data[row['label']] = row['texts']
+    
+    # 保存为YAML文件
+    with open(output_file, 'w', encoding='utf-8') as f:
+        yaml.dump(intent_data, f, allow_unicode=True, sort_keys=False)
+    
+    print(f"\nYAML文件已保存到: {output_file}")
+
+def save_to_json(df, output_file='data/intent.json', max_texts=100):
+    """
+    将意图数据转换为JSON格式并保存
+    
+    Args:
+        df: DataFrame
+        output_file: 输出的JSON文件路径
+        max_texts: 每个意图类别最多保留的文本数量
+    """
+    # 创建要保存的数据结构
+    intent_data = {}
+    
+    # 遍历DataFrame，构建数据结构并清理数据
+    for _, row in df.iterrows():
+        # 清理文本列表中的特殊字符
+        cleaned_texts = [text.strip().replace('\r', '').replace('\t', '').replace(' ', '') for text in row['texts']]
+        # 过滤掉空字符串
+        cleaned_texts = [text for text in cleaned_texts if text]
+        # 去重
+        cleaned_texts = list(dict.fromkeys(cleaned_texts))
+        # 截取前100条
+        cleaned_texts = cleaned_texts[:max_texts]
+        intent_data[row['label']] = cleaned_texts
+    
+    # 保存为JSON文件，设置缩进为2，确保中文字符正确显示
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(intent_data, f, ensure_ascii=False, indent=2)
+    
+    print(f"\nJSON文件已保存到: {output_file}")
+    # 打印每个意图类别保存的文本数量
+    print("\n各意图类别保存的文本数量:")
+    for label, texts in intent_data.items():
+        print(f"{label}: {len(texts)}条文本")
+
+if __name__ == "__main__":
+    # 加载数据
+    df = load_intent_data()
+    
+    # 保存为YAML和JSON格式
+    save_to_yaml(df)
+    save_to_json(df)
+    
+    # 示例：随机获取一个意图类别的样本
+    label, texts = get_intent_samples(df)
+    print(f"\n随机选择的意图类别 '{label}' 的示例文本:")
+    for i, text in enumerate(texts[:5], 1):
+        print(f"{i}. {text}") 
